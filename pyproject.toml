@@ -22,8 +22,27 @@ packages = [
   { include = "sns_sqs_communicator" }
 ]
 
+[tool.poetry.plugins.pytest11]
+sns_sqs_communicator = "sns_sqs_communicator.testing.plugin"
+
 [tool.poetry.dependencies]
 python = "^3.11"
+# The AWS SDK for Python
+# https://boto3.amazonaws.com/v1/documentation/api/latest/index.html
+boto3 = "*"
+# Mypy stubs for boto3
+# https://pypi.org/project/boto3-stubs/#how-to-install
+boto3-stubs = {extras=["sqs", "sns"], version = "*"}
+# Data validation using Python type hints
+# https://docs.pydantic.dev/latest/
+pydantic = "<3"
+# Ultra fast JSON encoder and decoder for Python
+# https://github.com/ultrajson/ultrajson
+ujson = "<6"
+# AnyIO is an asynchronous networking and concurrency library
+# that works on top of either asyncio or trio.
+# https://anyio.readthedocs.io/en/stable/
+anyio = "<5"
 
 [tool.poetry.group.dev.dependencies]
 # Improved REPL
@@ -43,6 +62,8 @@ saritasa_invocations = "^1.1.0"
 # Mypy is a static type checker for Python.
 # https://mypy.readthedocs.io/en/stable/
 mypy = "^1.10.0"
+# UJSON types
+types-ujson = "^5.9.0.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.1.1"
@@ -171,8 +192,16 @@ section-order = [
     "future",
     "standard-library",
     "third-party",
+    "boto3",
     "first-party",
     "local-folder",
+]
+[tool.ruff.lint.isort.sections]
+boto3 = [
+  "boto3",
+  "botocore",
+  "mypy_boto3_sns",
+  "mypy_boto3_sqs",
 ]
 
 [tool.ruff.lint.flake8-pytest-style]
