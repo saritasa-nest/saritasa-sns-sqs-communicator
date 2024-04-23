@@ -1,0 +1,25 @@
+version: '3.7'
+name: "sns-sqs-communicator"
+
+services:
+  # ###########################################################################
+  # Localstack - solution for many aws services in one container
+  # Used for SNS, SQS
+  # Docs: https://docs.localstack.cloud/overview/
+  # ###########################################################################
+  localstack-services:
+    image: localstack/localstack:3.3.0
+    hostname: localhost.localstack.cloud
+    ports:
+      - "4566:4566"
+    environment:
+      # https://docs.localstack.cloud/references/configuration/
+      - SERVICES=sqs,snssqs,sns
+      - DEBUG=1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - AWS_ACCESS_KEY_ID=root
+      - AWS_SECRET_ACCESS_KEY=rootroot
+      - AWS_DEFAULT_REGION=us-west-1
+    volumes:
+      - "${LOCALSTACK_VOLUME_DIR:-./localstack_volume}:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
