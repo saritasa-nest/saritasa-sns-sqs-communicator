@@ -111,6 +111,7 @@ class MessagePollWorker(
                     sqs_client=sqs_client,
                 ),
                 parser=cls.setup_parser(),
+                logger=logger,
             )
 
     @classmethod
