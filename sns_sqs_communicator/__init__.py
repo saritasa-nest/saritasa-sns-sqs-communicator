@@ -3,12 +3,13 @@ import contextlib
 from . import (
     clients,
     fifo_attributes_creator,
-    message_poll_worker,
+    local,
     messages,
     parsers,
     processing,
     queue,
     schemas,
+    sqs_poll_worker,
     topic,
     types,
 )
@@ -19,7 +20,7 @@ with contextlib.suppress(ImportError):
 __all__ = (
     "clients",
     "fifo_attributes_creator",
-    "message_poll_worker",
+    "sqs_poll_worker",
     "messages",
     "parsers",
     "processing",
@@ -27,5 +28,6 @@ __all__ = (
     "schemas",
     "topic",
     "types",
+    "local",
     "testing",
 )
