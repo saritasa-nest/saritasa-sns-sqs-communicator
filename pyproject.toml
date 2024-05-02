@@ -25,6 +25,9 @@ packages = [
 [tool.poetry.plugins.pytest11]
 sns_sqs_communicator = "sns_sqs_communicator.testing.plugin"
 
+[tool.poetry.scripts]
+sns-sqs-communicator = "sns_sqs_communicator.cli:app"
+
 [tool.poetry.dependencies]
 python = "^3.11"
 # The AWS SDK for Python
@@ -43,6 +46,8 @@ ujson = "<6"
 # that works on top of either asyncio or trio.
 # https://anyio.readthedocs.io/en/stable/
 anyio = "<5"
+# Typer, build great CLIs. Easy to code. Based on Python type hints.
+typer = {extras=["all"], version = "<1"}
 
 [tool.poetry.group.dev.dependencies]
 # Improved REPL
@@ -277,3 +282,35 @@ wrap-descriptions=0
 in-place=true
 blank=true
 black=true
+
+[tool.sns-sqs-communicator]
+[tool.sns-sqs-communicator.local-setup]
+endpoint_url = "https://localhost.localstack.cloud:4566"
+region="us-west-1"
+access_key="root"
+secret_key="rootroot"
+queues_to_create=[
+  "/000000000000/cli-test.fifo",
+  "/000000000000/cli-test-dead-letter.fifo",
+  "/000000000000/cli-test-for-topic.fifo",
+]
+topics_to_create=[
+  "arn:aws:sns:${aws_region}:000000000000:cli-test-sns-topic.fifo",
+]
+[tool.sns-sqs-communicator.local-setup.topics_subscriptions]
+"arn:aws:sns:${aws_region}:000000000000:cli-test-sns-topic.fifo"=[
+    "/000000000000/cli-test-for-topic.fifo",
+]
+[tool.sns-sqs-communicator.local-setup.queue_attributes]
+FifoQueue="true"
+[tool.sns-sqs-communicator.local-setup.queue_policy]
+Effect="Allow"
+Action="sqs:SendMessage"
+[tool.sns-sqs-communicator.local-setup.queue_policy.Principal]
+Service="sns.amazonaws.com"
+[tool.sns-sqs-communicator.local-setup.topic_attributes]
+FifoTopic="true"
+# Enable content-base deduplication which is required for FIFO
+# topic
+# https://docs.aws.amazon.com/sns/latest/dg/fifo-message-dedup.html
+ContentBasedDeduplication="true"

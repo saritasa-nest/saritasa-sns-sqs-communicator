@@ -17,7 +17,7 @@ from . import (
 )
 
 
-class MessagePollWorker(
+class SQSPollWorker(
     typing.Protocol[messages.MessageActionT],
 ):
     """Worker that polls and processes new messages from remote queue."""
@@ -25,12 +25,13 @@ class MessagePollWorker(
     queue_url: str
     dead_letter_queue_url: str
     fifo_attrs_creator: (
-        fifo_attributes_creator.FifoAttributesCreatorProtocol | None
+        type[fifo_attributes_creator.FifoAttributesCreatorProtocol] | None
     ) = None
     dead_letter_fifo_attrs_creator: (
-        fifo_attributes_creator.FifoAttributesCreatorProtocol | None
+        type[fifo_attributes_creator.FifoAttributesCreatorProtocol] | None
     ) = None
-    logger_name: str = "message_poll_worker"
+    logger_name: str = "sns_sqs_worker"
+    logging_level: str = "INFO"
     queue_class: type[queue.SQSQueue]
     parser_class: type[parsers.ParserProtocol[messages.MessageActionT]]
 
@@ -38,6 +39,20 @@ class MessagePollWorker(
     def setup_sqs_client(cls) -> clients.SQSClient:
         """Set up sqs client."""
         ...
+
+    @classmethod
+    def get_fifo_attrs_creator(
+        cls,
+    ) -> fifo_attributes_creator.FifoAttributesCreatorProtocol | None:
+        """Get fifo_attrs_creator class."""
+        return cls.fifo_attrs_creator
+
+    @classmethod
+    def get_dead_letter_fifo_attrs_creator(
+        cls,
+    ) -> fifo_attributes_creator.FifoAttributesCreatorProtocol | None:
+        """Get dead_letter_fifo_attrs_creator class."""
+        return cls.dead_letter_fifo_attrs_creator
 
     @classmethod
     @metrics.tracker
@@ -49,7 +64,7 @@ class MessagePollWorker(
         return cls.queue_class(
             client=sqs_client,
             queue_url=cls.queue_url,
-            fifo_attrs_creator=cls.fifo_attrs_creator,
+            fifo_attrs_creator=cls.get_fifo_attrs_creator(),
         )
 
     @classmethod
@@ -62,7 +77,7 @@ class MessagePollWorker(
         return cls.queue_class(
             client=sqs_client,
             queue_url=cls.dead_letter_queue_url,
-            fifo_attrs_creator=cls.dead_letter_fifo_attrs_creator,
+            fifo_attrs_creator=cls.get_dead_letter_fifo_attrs_creator(),
         )
 
     @classmethod
@@ -76,8 +91,10 @@ class MessagePollWorker(
     def run_events_worker(
         cls,
         in_thread: bool = False,
+        logging_level: str = "INFO",
     ) -> None:
         """Run events worker (in current or separate thread)."""
+        cls.logging_level = logging_level
         if in_thread:
             worker_thread = threading.Thread(
                 target=asyncio.run,
@@ -93,7 +110,22 @@ class MessagePollWorker(
     def setup_logger(cls) -> logging.Logger:
         """Set up logger."""
         logger = logging.getLogger(cls.logger_name)
+        handler = cls.setup_logger_handler()
+        handler.setFormatter(cls.setup_logger_formatter())
+        logger.addHandler(handler)
+        logger.setLevel(getattr(logging, cls.logging_level))
         return logger
+
+    @classmethod
+    def setup_logger_handler(cls) -> logging.Handler:
+        """Set up handler for logger."""
+        handler = logging.StreamHandler()
+        return handler
+
+    @classmethod
+    def setup_logger_formatter(cls) -> logging.Formatter:
+        """Set up handler for logger."""
+        return logging.Formatter()
 
     @classmethod
     async def run(cls) -> None:
