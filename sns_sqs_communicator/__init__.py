@@ -17,6 +17,9 @@ from . import (
 with contextlib.suppress(ImportError):
     from . import testing
 
+with contextlib.suppress(ImportError):
+    from . import sentry
+
 __all__ = (
     "clients",
     "fifo_attributes_creator",
@@ -30,4 +33,5 @@ __all__ = (
     "types",
     "local",
     "testing",
+    "sentry",
 )
