@@ -99,8 +99,13 @@ class Processor(
             "Body:\n" f"{message.serialize_body()}\n",
         )
         try:
+            action = getattr(self, message.action, None)
+            if not action:
+                raise CancelProcessingError(
+                    f"No method defined for {message.action} action",
+                )
             async with self.prepare_context(message) as context:
-                result = await getattr(self, message.action)(
+                result = await action(
                     message=message,
                     logger=logger,
                     **context,

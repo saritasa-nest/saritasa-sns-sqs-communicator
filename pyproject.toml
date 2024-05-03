@@ -48,6 +48,13 @@ ujson = "<6"
 anyio = "<5"
 # Typer, build great CLIs. Easy to code. Based on Python type hints.
 typer = {extras=["all"], version = "<1"}
+# Python client for Sentry (https://sentry.io)
+# https://pypi.org/project/sentry-sdk/
+sentry-sdk = {version = "<3", optional = true}
+
+[tool.poetry.extras]
+all = ["sentry-sdk"]
+sentry = ["sentry-sdk"]
 
 [tool.poetry.group.dev.dependencies]
 # Improved REPL
