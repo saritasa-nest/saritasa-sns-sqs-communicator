@@ -34,9 +34,21 @@ class SentryProcessor(
         ) as transaction:
             transaction.set_tag("type", message.type)
             transaction.set_tag("action", message.action)
-            with sentry_sdk.start_span() as span:
-                span.set_data(
-                    "body_schema",
-                    message.body_schema.model_dump(mode="json"),
+            sentry_sdk.set_context(
+                "Body Schema",
+                message.body_schema.model_dump(mode="json"),
+            )
+            try:
+                result = await super().__call__(message=message, logger=logger)
+            except processing.CancelProcessingError as error:
+                transaction.set_status("cancelled")
+                sentry_sdk.set_context(
+                    "Cancelled Reason",
+                    {"reason": error.reason},
                 )
-                return await super().__call__(message=message, logger=logger)
+                raise error
+            except ExceptionGroup as error:
+                transaction.set_status("internal_error")
+                raise error
+            transaction.set_status("ok")
+            return result
