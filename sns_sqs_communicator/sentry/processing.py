@@ -34,8 +34,9 @@ class SentryProcessor(
         ) as transaction:
             transaction.set_tag("type", message.type)
             transaction.set_tag("action", message.action)
-            transaction.set_data(
-                "body_schema",
-                message.body_schema.model_dump(),
-            )
-            return await super().__call__(message=message, logger=logger)
+            with sentry_sdk.start_span() as span:
+                span.set_data(
+                    "body_schema",
+                    message.body_schema.model_dump(mode="json"),
+                )
+                return await super().__call__(message=message, logger=logger)
