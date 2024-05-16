@@ -75,7 +75,7 @@ saritasa_invocations = "^1.1.0"
 # https://mypy.readthedocs.io/en/stable/
 mypy = "^1.10.0"
 # UJSON types
-types-ujson = "^5.9.0.0"
+types-ujson = "^5.10.0.20240515"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.2.0"
