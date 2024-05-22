@@ -174,10 +174,22 @@ def sqs_queue_name(
     request: pytest.FixtureRequest,
 ) -> str:
     """Get queue name."""
-    return str(
-        request.config.inicfg.get(
-            "sns_sqs_queue_name",
-            "sns-sqs-communicator-queue",
+    worker_input = getattr(
+        request.config,
+        "workerinput",
+        {
+            "workerid": "",
+        },
+    )
+    return "-".join(
+        (
+            str(
+                request.config.inicfg.get(
+                    "sns_sqs_queue_name",
+                    "sns-sqs-communicator-queue",
+                ),
+            ),
+            worker_input["workerid"],
         ),
     )
 
@@ -255,10 +267,22 @@ def sns_topic_name(
     request: pytest.FixtureRequest,
 ) -> str:
     """Get queue name."""
-    return str(
-        request.config.inicfg.get(
-            "sns_sqs_topic_name",
-            "sns-sqs-communicator-topic",
+    worker_input = getattr(
+        request.config,
+        "workerinput",
+        {
+            "workerid": "",
+        },
+    )
+    return "-".join(
+        (
+            str(
+                request.config.inicfg.get(
+                    "sns_sqs_topic_name",
+                    "sns-sqs-communicator-topic",
+                ),
+            ),
+            worker_input["workerid"],
         ),
     )
 
