@@ -11,10 +11,12 @@ from .. import (
     fifo_attributes_creator,
     messages,
     parsers,
+    processing,
     queue,
     schemas,
     topic,
 )
+from . import worker
 
 
 async def check_messages_in_queue(
@@ -44,6 +46,62 @@ async def check_messages_in_queue(
             message,
             received_messages,
         )
+
+
+async def push_and_pull_successful_result(
+    sns_sqs_worker: worker.TestWorker[messages.MessageActionT],
+    message: messages.Message[
+        schemas.QueueBodySchemaT,
+        messages.MessageActionT,
+    ],
+) -> processing.ProcessingResult[typing.Any]:
+    """Push and pull successful message."""
+    results = await sns_sqs_worker.publish_and_pull(message=message)
+    assert len(results) == 1, results
+    result = results[0]
+    result.raise_on_exception()
+    assert result.is_ok
+    return result
+
+
+async def push_and_pull_canceled_result(
+    sns_sqs_worker: worker.TestWorker[messages.MessageActionT],
+    message: messages.Message[
+        schemas.QueueBodySchemaT,
+        messages.MessageActionT,
+    ],
+    expected_message: str,
+) -> processing.ProcessingResult[typing.Any]:
+    """Push and pull canceled message."""
+    results = await sns_sqs_worker.publish_and_pull(message=message)
+    assert len(results) == 1, results
+    result = results[0]
+    result.raise_on_failure()
+    assert result.is_canceled, result
+    assert result.message == expected_message, (
+        result.message,
+        expected_message,
+    )
+    return result
+
+
+async def push_and_pull_failed_result(
+    sns_sqs_worker: worker.TestWorker[messages.MessageActionT],
+    message: messages.Message[
+        schemas.QueueBodySchemaT,
+        messages.MessageActionT,
+    ],
+    expected_message: str,
+    expected_exception: type[Exception],
+) -> processing.ProcessingResult[typing.Any]:
+    """Push and pull failed message."""
+    results = await sns_sqs_worker.publish_and_pull(message=message)
+    assert len(results) == 1, results
+    result = results[0]
+    assert result.is_failed, result
+    assert isinstance(result.exception, expected_exception), result.exception
+    assert result.message == expected_message
+    return result
 
 
 @contextlib.asynccontextmanager

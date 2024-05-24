@@ -16,7 +16,7 @@ class FifoAttributesCreatorProtocol(typing.Protocol):
         metadata: dict[str, str],
     ) -> str:
         """Construct message deduplication id."""
-        ...
+        ...  # pragma: no cover
 
     @classmethod
     def get_message_group_id(
@@ -25,7 +25,7 @@ class FifoAttributesCreatorProtocol(typing.Protocol):
         metadata: dict[str, str],
     ) -> str:
         """Construct message group id."""
-        ...
+        ...  # pragma: no cover
 
 
 class FifoAttributesCreator(FifoAttributesCreatorProtocol):

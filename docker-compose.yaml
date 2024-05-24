@@ -1,4 +1,3 @@
-version: '3.7'
 name: "sns-sqs-communicator"
 
 services:
@@ -14,7 +13,7 @@ services:
       - "4566:4566"
     environment:
       # https://docs.localstack.cloud/references/configuration/
-      - SERVICES=sqs,snssqs,sns
+      - SERVICES=sqs,sns
       - DEBUG=1
       - DOCKER_HOST=unix:///var/run/docker.sock
       - AWS_ACCESS_KEY_ID=root

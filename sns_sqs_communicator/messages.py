@@ -31,7 +31,7 @@ class Message(
 
     def serialize_body(self) -> dict[str, typing.Any]:
         """Serialize message body."""
-        return self.body_schema.model_dump(mode="json")
+        return self.body_schema.model_dump(mode="json", by_alias=True)
 
     def to_dict(self) -> dict[str, typing.Any]:
         """Serialize message to dict."""

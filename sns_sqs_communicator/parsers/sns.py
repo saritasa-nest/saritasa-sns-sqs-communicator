@@ -25,7 +25,9 @@ class SNSParser(
     ]:
         """Deserialize message."""
         if not (body := raw_message.get("Body")):
-            raise KeyError("No body has been found in message")
+            raise KeyError(
+                "No body has been found in message",
+            )  # pragma: no cover
 
         # SNS wraps actual body into another one, but we need this outer body
         # to parse attributes from it.
@@ -58,7 +60,9 @@ class SNSParser(
     ) -> typing.Any:
         """Retrieve body from raw message."""
         if not (body := raw_message.get("Body")):
-            raise KeyError("No body has been found in message")
+            raise KeyError(
+                "No body has been found in message",
+            )  # pragma: no cover
 
         return ujson.loads(body)["Message"]
 
@@ -70,12 +74,18 @@ class SNSParser(
     ) -> str:
         """Retrieve message attribute value by name."""
         if not (message_attrs := raw_message.get("MessageAttributes")):
-            raise KeyError("No message attributes has been found")
+            raise KeyError(
+                "No message attributes has been found",
+            )  # pragma: no cover
 
         if not (attr := message_attrs.get(attr_name)):
-            raise KeyError(f"No {attr_name} found in message attributes")
+            raise KeyError(
+                f"No {attr_name} found in message attributes",
+            )  # pragma: no cover
 
         if not (attr_string_value := attr.get("Value")):
-            raise ValueError(f"No Value is set for {attr_name}")
+            raise ValueError(
+                f"No Value is set for {attr_name}",
+            )  # pragma: no cover
 
         return attr_string_value

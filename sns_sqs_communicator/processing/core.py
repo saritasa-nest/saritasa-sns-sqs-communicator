@@ -1,8 +1,11 @@
 import collections
 import collections.abc
 import contextlib
+import enum
 import logging
 import typing
+
+import pydantic
 
 from .. import messages, metrics, schemas
 
@@ -18,6 +21,69 @@ class CancelProcessingError(Exception):
     def __init__(self, reason: str) -> None:
         super().__init__()
         self.reason = reason
+
+
+class ProcessingResultStatus(enum.StrEnum):
+    """Define status for result of processing."""
+
+    success = "success"
+    failed = "failed"
+    canceled = "cancelled"
+
+
+ProcessingResultReturnT = typing.TypeVar(
+    "ProcessingResultReturnT",
+    bound=typing.Any,
+)
+
+
+class ProcessingResult(
+    pydantic.BaseModel,
+    typing.Generic[ProcessingResultReturnT],
+):
+    """Representation of processing result."""
+
+    model_config = pydantic.ConfigDict(
+        arbitrary_types_allowed=True,
+    )
+
+    status: ProcessingResultStatus
+    result: ProcessingResultReturnT
+    message: str
+    exception: Exception | None = None
+
+    @property
+    def is_ok(self) -> bool:
+        """Check if ok."""
+        return self.status == ProcessingResultStatus.success
+
+    @property
+    def is_canceled(self) -> bool:
+        """Check if canceled."""
+        return self.status == ProcessingResultStatus.canceled
+
+    @property
+    def is_failed(self) -> bool:
+        """Check if canceled."""
+        return self.status == ProcessingResultStatus.failed
+
+    def raise_on_failure(self) -> None:
+        """Raise error on fail."""
+        if self.is_ok or self.is_canceled:
+            return
+        self.raise_on_exception()
+
+    def raise_on_canceled(self) -> None:
+        """Raise error on fail."""
+        if self.is_ok or self.is_failed:
+            return
+        self.raise_on_exception()
+
+    def raise_on_exception(self) -> None:
+        """Raise error if present."""
+        if not self.exception:
+            return
+        raise self.exception
 
 
 class Processor(
@@ -89,7 +155,7 @@ class Processor(
             messages.MessageActionT,
         ],
         logger: logging.Logger,
-    ) -> typing.Any:
+    ) -> ProcessingResult[typing.Any]:
         """Execute processor."""
         logger.info(
             f"Starting to process <{message.action}: "
@@ -110,9 +176,14 @@ class Processor(
                     logger=logger,
                     **context,
                 )
-        except CancelProcessingError as skip_exception:
-            logger.info(f"Cancelled, reason: {skip_exception.reason}")
-            return
+        except CancelProcessingError as cancel_exception:
+            logger.info(f"Cancelled, reason: {cancel_exception.reason}")
+            return ProcessingResult[typing.Any](
+                status=ProcessingResultStatus.canceled,
+                message=cancel_exception.reason,
+                result=None,
+                exception=cancel_exception,
+            )
         logger.info(
             f"Finished to process <{message.action}: "
             f"{self.for_type}> with processor {self.__class__}.",
@@ -120,7 +191,12 @@ class Processor(
         logger.debug(
             "Body:\n" f"{message.serialize_body()}\n",
         )
-        return result
+        return ProcessingResult[typing.Any](
+            status=ProcessingResultStatus.success,
+            message="",
+            result=result,
+            exception=None,
+        )
 
     @contextlib.asynccontextmanager
     @metrics.tracker
