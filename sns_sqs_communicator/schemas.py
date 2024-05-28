@@ -34,7 +34,7 @@ class QueueBodySchema(pydantic.BaseModel):
         if not for_type:
             return
         if for_type in cls.registry:
-            raise KeyError(f"{for_type} is already registered")
+            raise KeyError(f"{for_type} is already registered({cls})")
         cls.registry[for_type] = cls
         cls.for_type = for_type
 

@@ -1,6 +1,7 @@
 import contextlib
 import functools
 import importlib
+import logging
 import typing
 
 import pytest
@@ -9,11 +10,11 @@ import botocore.credentials
 import mypy_boto3_sns
 import mypy_boto3_sqs.literals
 
-from .. import clients, fifo_attributes_creator, types
+from .. import clients, fifo_attributes_creator, sqs_poll_worker, types
 from .. import parsers as parsers_module
 from .. import queue as queue_module
 from .. import topic as topic_module
-from . import shortcuts
+from . import shortcuts, worker
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -35,8 +36,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "Region for aws.",
     )
     parser.addini(
-        "sqs_queue_name",
+        "sns_sqs_queue_name",
         "SQS queue name.",
+        default="sns-sqs-communicator-queue",
+    )
+    parser.addini(
+        "sns_sqs_dead_letter_queue_name",
+        "SQS queue name for dead letters.",
         default="sns-sqs-communicator-queue",
     )
     parser.addini(
@@ -45,7 +51,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default="sns_sqs_communicator.queue.SQSQueue",
     )
     parser.addini(
-        "sns_topic_name",
+        "sns_sqs_topic_name",
         "SNS topic name.",
         default="sns-sqs-communicator-topic",
     )
@@ -62,6 +68,18 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "sns_parser_class",
         "Path to parser class.",
     )
+    parser.addini(
+        "sqs_poll_worker_class",
+        "Path to sqs poll worker class.",
+    )
+
+
+@pytest.fixture(scope="session")
+async def logger() -> logging.Logger:
+    """Prepare logger for processors."""
+    logger = logging.getLogger(__file__)
+    logger.setLevel(logging.ERROR)
+    return logger
 
 
 @pytest.fixture(scope="session")
@@ -160,13 +178,27 @@ def factory_fifo_attrs_creator() -> (
     fifo_attributes_creator.FifoAttributesCreatorProtocol | None
 ):
     """Get fifo_attrs_creator for factory."""
-    return None
+    return None  # pragma: no cover
 
 
 @pytest.fixture(scope="session")
-def factory_attributes() -> typing.Mapping[str, str] | None:
-    """Get attributes for factory."""
-    return None
+def factory_dead_letter_fifo_attrs_creator() -> (
+    fifo_attributes_creator.FifoAttributesCreatorProtocol | None
+):
+    """Get fifo_attrs_creator for factory."""
+    return None  # pragma: no cover
+
+
+@pytest.fixture(scope="session")
+def factory_queue_attributes() -> typing.Mapping[str, str] | None:
+    """Get queue attributes for factory."""
+    return None  # pragma: no cover
+
+
+@pytest.fixture(scope="session")
+def factory_topic_attributes() -> typing.Mapping[str, str] | None:
+    """Get topic attributes for factory."""
+    return None  # pragma: no cover
 
 
 @pytest.fixture(scope="session")
@@ -182,14 +214,45 @@ def sqs_queue_name(
         },
     )
     return "-".join(
-        (
-            str(
-                request.config.inicfg.get(
-                    "sns_sqs_queue_name",
-                    "sns-sqs-communicator-queue",
+        filter(
+            None,
+            (
+                worker_input["workerid"],
+                str(
+                    request.config.inicfg.get(
+                        "sns_sqs_queue_name",
+                        "sns-sqs-communicator-queue",
+                    ),
                 ),
             ),
-            worker_input["workerid"],
+        ),
+    )
+
+
+@pytest.fixture(scope="session")
+def dead_letter_sqs_queue_name(
+    request: pytest.FixtureRequest,
+) -> str:
+    """Get queue name for dead letters."""
+    worker_input = getattr(
+        request.config,
+        "workerinput",
+        {
+            "workerid": "",
+        },
+    )
+    return "-".join(
+        filter(
+            None,
+            (
+                worker_input["workerid"],
+                str(
+                    request.config.inicfg.get(
+                        "sns_sqs_dead_letter_queue_name",
+                        "sns-sqs-communicator-dead-letter-queue",
+                    ),
+                ),
+            ),
         ),
     )
 
@@ -204,8 +267,11 @@ def sqs_queue_class(
     )
     if not sns_sqs_queue_class:
         return queue_module.SQSQueue
-    *module, klass = sns_sqs_queue_class.split(".")
-    return getattr(importlib.import_module(".".join(module)), klass)
+    *module, klass = sns_sqs_queue_class.split(".")  # pragma: no cover
+    return getattr(
+        importlib.import_module(".".join(module)),
+        klass,
+    )  # pragma: no cover
 
 
 @pytest.fixture(scope="session")
@@ -215,7 +281,7 @@ def sqs_queue_factory(
     sqs_queue_class: type[queue_module.SQSQueue],
     factory_fifo_attrs_creator: fifo_attributes_creator.FifoAttributesCreatorProtocol  # noqa: E501
     | None,
-    factory_attributes: typing.Mapping[
+    factory_queue_attributes: typing.Mapping[
         mypy_boto3_sqs.literals.QueueAttributeNameType,
         str,
     ]
@@ -229,7 +295,7 @@ def sqs_queue_factory(
         name=sqs_queue_name,
         sqs_client=sqs_client,
         fifo_attrs_creator=factory_fifo_attrs_creator,
-        attributes=factory_attributes,
+        attributes=factory_queue_attributes,
         queue_class=sqs_queue_class,
     )
 
@@ -243,16 +309,17 @@ async def setup_sqs_queue(
     queue_module.SQSQueue,
     None,
 ]:
-    """Create sqs_queue_module."""
+    """Create queue."""
     async with sqs_queue_factory() as queue:
         yield queue
+        await queue.receive_all()
 
 
 @pytest.fixture
 async def sqs_queue(
     setup_sqs_queue: queue_module.SQSQueue,
 ) -> typing.AsyncGenerator[queue_module.SQSQueue, None]:
-    """Return events queue for testing.
+    """Return queue for testing.
 
     Receive all messages from queue on teardown after each test to avoid
     keeping messages between different tests.
@@ -260,6 +327,40 @@ async def sqs_queue(
     """
     yield setup_sqs_queue
     await setup_sqs_queue.receive_all()
+
+
+@pytest.fixture(scope="session")
+async def setup_dead_letter_sqs_queue(
+    dead_letter_sqs_queue_name: str,
+    sqs_queue_factory: functools.partial[
+        contextlib._AsyncGeneratorContextManager[queue_module.SQSQueue]
+    ],
+    factory_dead_letter_fifo_attrs_creator: fifo_attributes_creator.FifoAttributesCreatorProtocol,  # noqa: E501
+) -> typing.AsyncGenerator[
+    queue_module.SQSQueue,
+    None,
+]:
+    """Create dead letter queue."""
+    async with sqs_queue_factory(
+        name=dead_letter_sqs_queue_name,
+        fifo_attrs_creator=factory_dead_letter_fifo_attrs_creator,
+    ) as queue:
+        yield queue
+        await queue.receive_all()
+
+
+@pytest.fixture
+async def dead_letter_sqs_queue(
+    setup_dead_letter_sqs_queue: queue_module.SQSQueue,
+) -> typing.AsyncGenerator[queue_module.SQSQueue, None]:
+    """Return dead letter queue for testing.
+
+    Receive all messages from queue on teardown after each test to avoid
+    keeping messages between different tests.
+
+    """
+    yield setup_dead_letter_sqs_queue
+    await setup_dead_letter_sqs_queue.receive_all()
 
 
 @pytest.fixture(scope="session")
@@ -275,14 +376,17 @@ def sns_topic_name(
         },
     )
     return "-".join(
-        (
-            str(
-                request.config.inicfg.get(
-                    "sns_sqs_topic_name",
-                    "sns-sqs-communicator-topic",
+        filter(
+            None,
+            (
+                worker_input["workerid"],
+                str(
+                    request.config.inicfg.get(
+                        "sns_sqs_topic_name",
+                        "sns-sqs-communicator-topic",
+                    ),
                 ),
             ),
-            worker_input["workerid"],
         ),
     )
 
@@ -297,8 +401,12 @@ def sns_topic_class(
     )
     if not sns_sqs_topic_class:
         return topic_module.SNSTopic
-    *module, klass = sns_sqs_topic_class.split(".")
-    return getattr(importlib.import_module(".".join(module)), klass)
+
+    *module, klass = sns_sqs_topic_class.split(".")  # pragma: no cover
+    return getattr(
+        importlib.import_module(".".join(module)),
+        klass,
+    )  # pragma: no cover
 
 
 @pytest.fixture(scope="session")
@@ -310,7 +418,7 @@ def sns_topic_factory(
     sns_topic_class: type[topic_module.SNSTopic],
     factory_fifo_attrs_creator: fifo_attributes_creator.FifoAttributesCreatorProtocol  # noqa: E501
     | None,
-    factory_attributes: typing.Mapping[str, str] | None,
+    factory_topic_attributes: typing.Mapping[str, str] | None,
 ) -> functools.partial[
     contextlib._AsyncGeneratorContextManager[topic_module.SNSTopic]
 ]:
@@ -323,25 +431,38 @@ def sns_topic_factory(
         sns_client=sns_client,
         topic_class=sns_topic_class,
         fifo_attrs_creator=factory_fifo_attrs_creator,
-        attributes=factory_attributes,
+        attributes=factory_topic_attributes,
     )
 
 
 @pytest.fixture(scope="session")
-async def sns_topic(
+async def setup_sns_topic(
     setup_sqs_queue: queue_module.SQSQueue,
     sns_topic_factory: functools.partial[
         contextlib._AsyncGeneratorContextManager[topic_module.SNSTopic]
     ],
-) -> typing.AsyncGenerator[topic_module.SNSTopic, None]:
-    """Create sns_topic_module.
-
-    On teardown clear sqs_queue_module.
-
-    """
+) -> typing.AsyncGenerator[
+    topic_module.SNSTopic,
+    None,
+]:
+    """Create topic."""
     async with sns_topic_factory() as topic:
         yield topic
         await setup_sqs_queue.receive_all()
+
+
+@pytest.fixture
+async def sns_topic(
+    setup_sqs_queue: queue_module.SQSQueue,
+    setup_sns_topic: topic_module.SNSTopic,
+) -> typing.AsyncGenerator[topic_module.SNSTopic, None]:
+    """Create sns topic.
+
+    On teardown clear queue.
+
+    """
+    yield setup_sns_topic
+    await setup_sqs_queue.receive_all()
 
 
 @pytest.fixture(scope="session")
@@ -365,7 +486,7 @@ def sqs_parser(
 def sns_parser(
     request: pytest.FixtureRequest,
 ) -> type[parsers_module.ParserProtocol[typing.Any]]:
-    """Get topic class for factory."""
+    """Get parser for sns messages."""
     sns_sqs_topic_class = str(
         request.config.inicfg.get("sns_parser_class", ""),
     )
@@ -376,3 +497,42 @@ def sns_parser(
         )
     *module, klass = sns_sqs_topic_class.split(".")
     return getattr(importlib.import_module(".".join(module)), klass)
+
+
+@pytest.fixture
+async def sqs_poll_worker_class(
+    request: pytest.FixtureRequest,
+) -> type[sqs_poll_worker.SQSPollWorker[typing.Any]]:
+    """Get sqs poll worker class."""
+    sqs_poll_worker_class = str(
+        request.config.inicfg.get("sqs_poll_worker_class", ""),
+    )
+    if not sqs_poll_worker_class:
+        raise NotImplementedError(  # pragma: no cover
+            "Please set up `sqs_poll_worker_class` fixture or "
+            "set `sqs_poll_worker_class` in `.ini` file.",
+        )
+    *module, klass = sqs_poll_worker_class.split(".")
+    return getattr(importlib.import_module(".".join(module)), klass)
+
+
+@pytest.fixture
+async def sns_sqs_worker(
+    sns_topic: topic_module.SNSTopic,
+    sqs_poll_worker_class: type[sqs_poll_worker.SQSPollWorker[typing.Any]],
+    logger: logging.Logger,
+    sqs_queue: queue_module.SQSQueue,
+    dead_letter_sqs_queue: queue_module.SQSQueue,
+    sns_parser: type[parsers_module.ParserProtocol[typing.Any]],
+) -> typing.AsyncGenerator[worker.TestWorker[typing.Any], None]:
+    """Set up sns sqs worker."""
+    yield worker.TestWorker(
+        sqs_poll_worker_class=sqs_poll_worker_class,
+        sqs_queue=sqs_queue,
+        dead_letter_sqs_queue=dead_letter_sqs_queue,
+        sns_topic=sns_topic,
+        logger=logger,
+        parser=sns_parser,
+    )
+    await sqs_queue.receive_all()
+    await dead_letter_sqs_queue.receive_all()

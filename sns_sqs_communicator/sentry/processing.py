@@ -40,14 +40,13 @@ class SentryProcessor(
             )
             try:
                 result = await super().__call__(message=message, logger=logger)
-            except processing.CancelProcessingError as error:
-                transaction.set_status("cancelled")
-                sentry_sdk.set_context(
-                    "Cancelled Reason",
-                    {"reason": error.reason},
-                )
-                raise error
-            except ExceptionGroup as error:
+                if result.status == processing.ProcessingResultStatus.canceled:
+                    transaction.set_status("cancelled")
+                    sentry_sdk.set_context(
+                        "Cancelled Reason",
+                        {"reason": result.message},
+                    )
+            except Exception as error:
                 transaction.set_status("internal_error")
                 raise error
             transaction.set_status("ok")

@@ -25,7 +25,7 @@ class ParserProtocol(
         messages.MessageActionT,
     ]:
         """Parse message."""
-        ...
+        ...  # pragma: no cover
 
     @classmethod
     def get_raw_body(
@@ -33,4 +33,4 @@ class ParserProtocol(
         raw_message: typing.Any,
     ) -> dict[str, typing.Any]:
         """Retrieve body from raw message."""
-        ...
+        ...  # pragma: no cover

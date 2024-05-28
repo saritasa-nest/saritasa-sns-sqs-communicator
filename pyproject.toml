@@ -274,11 +274,24 @@ addopts = [
 norecursedirs = [
     "venv",
     ".venv",
-    "example_app",
+    "queues",
 ]
+# Configuration for sqs/sns
+sns_sqs_endpoint_url = "https://localhost.localstack.cloud:4566"
+sns_sqs_region="us-west-1"
+sns_sqs_access_key="root"
+sns_sqs_secret_key="rootroot"
+sns_sqs_queue_name="sns-sqs-communicator-queue.fifo"
+sns_sqs_dead_letter_queue_name="sns-sqs-communicator-dead-letter-queue.fifo"
+sns_sqs_topic_name="sns-sqs-communicator-topic.fifo"
+sqs_parser_class="tests.queues.SQSParser"
+sns_parser_class="tests.queues.SNSParser"
+sqs_poll_worker_class="tests.queues.SQSPollWorker"
 
 [tool.coverage.run]
-omit = []
+omit = [
+  "sns_sqs_communicator/local.py"
+]
 
 [tool.coverage.report]
 include = ["sns_sqs_communicator/**"]

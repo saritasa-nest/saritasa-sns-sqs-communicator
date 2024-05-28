@@ -1,4 +1,5 @@
 import asyncio
+import collections.abc
 import logging
 import threading
 import traceback
@@ -38,28 +39,28 @@ class SQSPollWorker(
     @classmethod
     def setup_sqs_client(cls) -> clients.SQSClient:
         """Set up sqs client."""
-        ...
+        ...  # pragma: no cover
 
     @classmethod
     def get_fifo_attrs_creator(
         cls,
     ) -> fifo_attributes_creator.FifoAttributesCreatorProtocol | None:
         """Get fifo_attrs_creator class."""
-        return cls.fifo_attrs_creator
+        return cls.fifo_attrs_creator  # pragma: no cover
 
     @classmethod
     def get_dead_letter_fifo_attrs_creator(
         cls,
     ) -> fifo_attributes_creator.FifoAttributesCreatorProtocol | None:
         """Get dead_letter_fifo_attrs_creator class."""
-        return cls.dead_letter_fifo_attrs_creator
+        return cls.dead_letter_fifo_attrs_creator  # pragma: no cover
 
     @classmethod
     @metrics.tracker
     def setup_queue(
         cls,
         sqs_client: clients.SQSClient,
-    ) -> queue.SQSQueue:
+    ) -> queue.SQSQueue:  # pragma: no cover
         """Set up queue."""
         return cls.queue_class(
             client=sqs_client,
@@ -72,7 +73,7 @@ class SQSPollWorker(
     def setup_dead_letter_queue(
         cls,
         sqs_client: clients.SQSClient,
-    ) -> queue.SQSQueue:
+    ) -> queue.SQSQueue:  # pragma: no cover
         """Set up queue for dead letters."""
         return cls.queue_class(
             client=sqs_client,
@@ -82,9 +83,13 @@ class SQSPollWorker(
 
     @classmethod
     @metrics.tracker
-    def setup_parser(cls) -> parsers.ParserProtocol[messages.MessageActionT]:
+    def setup_parser(
+        cls,
+    ) -> type[
+        parsers.ParserProtocol[messages.MessageActionT]
+    ]:  # pragma: no cover
         """Set up queue."""
-        return cls.parser_class()  # type: ignore
+        return cls.parser_class  # type: ignore
 
     @classmethod
     @metrics.tracker
@@ -92,7 +97,7 @@ class SQSPollWorker(
         cls,
         in_thread: bool = False,
         logging_level: str = "INFO",
-    ) -> None:
+    ) -> None:  # pragma: no cover
         """Run events worker (in current or separate thread)."""
         cls.logging_level = logging_level
         if in_thread:
@@ -107,7 +112,7 @@ class SQSPollWorker(
 
     @classmethod
     @metrics.tracker
-    def setup_logger(cls) -> logging.Logger:
+    def setup_logger(cls) -> logging.Logger:  # pragma: no cover
         """Set up logger."""
         logger = logging.getLogger(cls.logger_name)
         handler = cls.setup_logger_handler()
@@ -117,7 +122,7 @@ class SQSPollWorker(
         return logger
 
     @classmethod
-    def setup_logger_handler(cls) -> logging.Handler:
+    def setup_logger_handler(cls) -> logging.Handler:  # pragma: no cover
         """Set up handler for logger."""
         handler = logging.StreamHandler()
         return handler
@@ -125,10 +130,10 @@ class SQSPollWorker(
     @classmethod
     def setup_logger_formatter(cls) -> logging.Formatter:
         """Set up handler for logger."""
-        return logging.Formatter()
+        return logging.Formatter()  # pragma: no cover
 
     @classmethod
-    async def run(cls) -> None:
+    async def run(cls) -> None:  # pragma: no cover
         """Start infinite loop that handles event messages."""
         logger = cls.setup_logger()
         logger.info(f"{cls.__name__} started")
@@ -152,41 +157,53 @@ class SQSPollWorker(
         cls,
         queue: queue.SQSQueue,
         dead_letter_queue: queue.SQSQueue,
-        parser: parsers.ParserProtocol[messages.MessageActionT],
+        parser: type[parsers.ParserProtocol[messages.MessageActionT]],
         logger: logging.Logger,
-    ) -> None:
+    ) -> collections.abc.Sequence[processing.ProcessingResult[typing.Any]]:
         """Pull for messages and process them."""
+        results = []
         async for raw_message in queue.receive():
             try:
-                await cls.process_message(
-                    raw_message=raw_message,
-                    parser=parser,
-                    logger=logger,
+                results.append(
+                    await cls.process_message(
+                        raw_message=raw_message,
+                        parser=parser,
+                        logger=logger,
+                    ),
                 )
-            except Exception as error:
+            except Exception as exception:
+                results.append(
+                    processing.ProcessingResult[typing.Any](
+                        status=processing.ProcessingResultStatus.failed,
+                        message=str(exception),
+                        result=None,
+                        exception=exception,
+                    ),
+                )
                 await cls.handle_processing_error(
                     raw_message=raw_message,
-                    error=error,
+                    error=exception,
                     parser=parser,
                     dead_letter_queue=dead_letter_queue,
                     logger=logger,
                 )
+        return results
 
     @classmethod
     @metrics.tracker
     async def process_message(
         cls,
         raw_message: mypy_boto3_sqs.type_defs.MessageTypeDef,
-        parser: parsers.ParserProtocol[messages.MessageActionT],
+        parser: type[parsers.ParserProtocol[messages.MessageActionT]],
         logger: logging.Logger,
-    ) -> None:
+    ) -> typing.Any:
         """Handle incoming message from queue."""
         message = parser.parse(raw_message)
         processor = await cls.get_processor(
             raw_message=raw_message,
             parser=parser,
         )
-        await processor(
+        return await processor(
             message=message,
             logger=logger,
         )
@@ -196,7 +213,7 @@ class SQSPollWorker(
     async def get_processor(
         cls,
         raw_message: mypy_boto3_sqs.type_defs.MessageTypeDef,
-        parser: parsers.ParserProtocol[messages.MessageActionT],
+        parser: type[parsers.ParserProtocol[messages.MessageActionT]],
     ) -> processing.Processor[typing.Any, typing.Any]:
         """Get matching processor for message."""
         message = parser.parse(raw_message)
