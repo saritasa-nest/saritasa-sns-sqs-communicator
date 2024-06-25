@@ -225,7 +225,7 @@ class SQSPollWorker(
         cls,
         raw_message: mypy_boto3_sqs.type_defs.MessageTypeDef,
         error: Exception,
-        parser: parsers.ParserProtocol[messages.MessageActionT],
+        parser: type[parsers.ParserProtocol[messages.MessageActionT]],
         dead_letter_queue: queue.SQSQueue,
         logger: logging.Logger,
     ) -> None:
