@@ -72,6 +72,10 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "sqs_poll_worker_class",
         "Path to sqs poll worker class.",
     )
+    parser.addini(
+        "sns_sqs_worker_wait_before_pull",
+        "Time for worker to wait before pulling.",
+    )
 
 
 @pytest.fixture(scope="session")
@@ -517,6 +521,18 @@ async def sqs_poll_worker_class(
 
 
 @pytest.fixture
+async def sns_sqs_worker_wait_before_pull(
+    request: pytest.FixtureRequest,
+) -> int | float:
+    """Time to wait before worker will pull messages."""
+    return float(
+        str(
+            request.config.inicfg.get("sns_sqs_worker_wait_before_pull", 0.5),
+        ),
+    )
+
+
+@pytest.fixture
 async def sns_sqs_worker(
     sns_topic: topic_module.SNSTopic,
     sqs_poll_worker_class: type[sqs_poll_worker.SQSPollWorker[typing.Any]],
@@ -524,6 +540,7 @@ async def sns_sqs_worker(
     sqs_queue: queue_module.SQSQueue,
     dead_letter_sqs_queue: queue_module.SQSQueue,
     sns_parser: type[parsers_module.ParserProtocol[typing.Any]],
+    sns_sqs_worker_wait_before_pull: int | float,
 ) -> typing.AsyncGenerator[worker.TestWorker[typing.Any], None]:
     """Set up sns sqs worker."""
     yield worker.TestWorker(
@@ -533,6 +550,7 @@ async def sns_sqs_worker(
         sns_topic=sns_topic,
         logger=logger,
         parser=sns_parser,
+        wait_before_pull=sns_sqs_worker_wait_before_pull,
     )
     await sqs_queue.receive_all()
     await dead_letter_sqs_queue.receive_all()

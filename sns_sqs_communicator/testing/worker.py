@@ -1,3 +1,4 @@
+import asyncio
 import collections.abc
 import logging
 import typing
@@ -18,6 +19,7 @@ class TestWorker(typing.Generic[messages.MessageActionT]):
         sns_topic: topic.SNSTopic,
         parser: type[parsers.ParserProtocol[messages.MessageActionT]],
         logger: logging.Logger,
+        wait_before_pull: int | float = 0.5,
     ) -> None:
         self.sqs_poll_worker_class = sqs_poll_worker_class
         self.queue = sqs_queue
@@ -25,6 +27,7 @@ class TestWorker(typing.Generic[messages.MessageActionT]):
         self.sns_topic = sns_topic
         self.parser = parser
         self.logger = logger
+        self.wait_before_pull = wait_before_pull
 
     async def publish_and_pull(
         self,
@@ -35,6 +38,7 @@ class TestWorker(typing.Generic[messages.MessageActionT]):
             body=message.serialize_body(),
             metadata=message.metadata,
         )
+        await asyncio.sleep(self.wait_before_pull)
         return await self.pull()
 
     async def pull(
