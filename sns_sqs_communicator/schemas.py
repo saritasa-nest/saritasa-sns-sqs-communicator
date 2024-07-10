@@ -4,6 +4,10 @@ import pydantic
 import typing_extensions
 
 
+class QueueBodySchemaNotRegisteredError(Exception):
+    """Exception we're unable to find schema for type."""
+
+
 class QueueBodySchema(pydantic.BaseModel):
     """Base schema for serialization message body for queue message."""
 
@@ -46,7 +50,7 @@ class QueueBodySchema(pydantic.BaseModel):
         """Retrieve schema for given message type from registry."""
         if schema := cls.registry.get(message_type):
             return schema
-        raise ValueError(
+        raise QueueBodySchemaNotRegisteredError(
             f"Schema for message type {message_type} is not registered",
         )
 

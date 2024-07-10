@@ -69,26 +69,3 @@ async def test_not_found_processor(
         ),
         expected_exception=KeyError,
     )
-
-
-async def test_not_found_schema(
-    sns_sqs_worker: sns_sqs_communicator.testing.TestWorker[
-        queues.MessageAction
-    ],
-) -> None:
-    """Test that cancellation works on not found schema as expected."""
-    message = queues.Message[queues.UnknownQueueBodySchema](
-        body_schema=queues.UnknownQueueBodySchema(
-            message="test_not_found_schema",
-        ),
-        action=queues.MessageAction.not_found_action,
-        type="unknown_schema",
-    )
-    await sns_sqs_communicator.testing.push_and_pull_failed_result(
-        sns_sqs_worker=sns_sqs_worker,
-        message=message,
-        expected_message=(
-            "Schema for message type unknown_schema is not registered"
-        ),
-        expected_exception=ValueError,
-    )

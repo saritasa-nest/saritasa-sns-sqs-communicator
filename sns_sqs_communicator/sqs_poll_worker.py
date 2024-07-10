@@ -35,6 +35,9 @@ class SQSPollWorker(
     logging_level: str = "INFO"
     queue_class: type[queue.SQSQueue]
     parser_class: type[parsers.ParserProtocol[messages.MessageActionT]]
+    core_processor_class: type[
+        processing.core.Processor[typing.Any, messages.MessageActionT]
+    ] = processing.core.Processor
 
     @classmethod
     def setup_sqs_client(cls) -> clients.SQSClient:
@@ -198,26 +201,11 @@ class SQSPollWorker(
         logger: logging.Logger,
     ) -> typing.Any:
         """Handle incoming message from queue."""
-        message = parser.parse(raw_message)
-        processor = await cls.get_processor(
+        return await cls.core_processor_class.process(
             raw_message=raw_message,
             parser=parser,
-        )
-        return await processor(
-            message=message,
             logger=logger,
         )
-
-    @classmethod
-    @metrics.tracker
-    async def get_processor(
-        cls,
-        raw_message: mypy_boto3_sqs.type_defs.MessageTypeDef,
-        parser: type[parsers.ParserProtocol[messages.MessageActionT]],
-    ) -> processing.Processor[typing.Any, typing.Any]:
-        """Get matching processor for message."""
-        message = parser.parse(raw_message)
-        return processing.Processor.get(message.type)
 
     @classmethod
     @metrics.tracker

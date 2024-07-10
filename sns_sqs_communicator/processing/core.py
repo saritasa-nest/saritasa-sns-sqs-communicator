@@ -7,7 +7,9 @@ import typing
 
 import pydantic
 
-from .. import messages, metrics, schemas
+import mypy_boto3_sqs.type_defs
+
+from .. import messages, metrics, parsers, schemas
 
 ProcessorT = typing.TypeVar(
     "ProcessorT",
@@ -133,6 +135,31 @@ class Processor(
             raise KeyError(f"{for_type} is already registered({cls})")
         cls.registry[for_type] = cls()
         cls.for_type = for_type
+
+    @classmethod
+    @metrics.tracker
+    async def process(
+        cls,
+        raw_message: mypy_boto3_sqs.type_defs.MessageTypeDef,
+        parser: type[parsers.ParserProtocol[messages.MessageActionT]],
+        logger: logging.Logger,
+    ) -> ProcessingResult[typing.Any]:
+        """Process raw message."""
+        try:
+            message = parser.parse(raw_message)
+        except schemas.QueueBodySchemaNotRegisteredError as not_found_error:
+            logger.info(f"Cancelled, reason: {not_found_error!s}")
+            return ProcessingResult[typing.Any](
+                status=ProcessingResultStatus.canceled,
+                message=str(not_found_error),
+                result=None,
+                exception=not_found_error,
+            )
+        processor = cls.get(message_type=message.type)
+        return await processor(
+            message=message,
+            logger=logger,
+        )
 
     @classmethod
     def get(
