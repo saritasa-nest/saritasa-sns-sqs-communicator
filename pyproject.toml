@@ -88,7 +88,7 @@ pytest-sugar = "^1.0.0"
 coverage = "^7.9.2"
 # Allows you to use fixtures in @pytest.mark.parametrize.
 # https://pypi.org/project/pytest-lazy-fixtures/
-pytest-lazy-fixtures = "^1.1.4"
+pytest-lazy-fixtures = "^1.2.0"
 # Fast creating of model instances. May be used in tests
 # https://factoryboy.readthedocs.io/en/stable/
 factory-boy = "^3.3.3"
