@@ -75,20 +75,20 @@ saritasa_invocations = "^1.6.0"
 # https://mypy.readthedocs.io/en/stable/
 mypy = "^1.17.1"
 # UJSON types
-types-ujson = "^5.10.0.20250326"
+types-ujson = "^5.10.0.20250822"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.4.1"
 # To prettify pytest output
-pytest-sugar = "^1.1.0"
+pytest-sugar = "^1.1.1"
 # Coverage.py is a tool for measuring code coverage of Python programs.
 # It monitors your program, noting which parts of the code have been executed,
 # then analyzes the source to identify code that could have been executed but was not.
 # https://coverage.readthedocs.io/en/latest/
-coverage = "^7.10.4"
+coverage = "^7.10.5"
 # Allows you to use fixtures in @pytest.mark.parametrize.
 # https://pypi.org/project/pytest-lazy-fixtures/
-pytest-lazy-fixtures = "^1.3.2"
+pytest-lazy-fixtures = "^1.3.4"
 # Fast creating of model instances. May be used in tests
 # https://factoryboy.readthedocs.io/en/stable/
 factory-boy = "^3.3.3"
