@@ -32,16 +32,6 @@ repos:
         args: [ --fix ]
       - id: ruff-format
 
-  - repo: https://github.com/pycqa/docformatter
-    rev: v1.7.5
-    hooks:
-      - id: docformatter
-        args: [
-          --wrap-descriptions=0,
-          --in-place,
-          --blank
-        ]
-
   - repo: local
     hooks:
       - id: mypy

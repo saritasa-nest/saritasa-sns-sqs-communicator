@@ -22,18 +22,22 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addini(
         "sns_sqs_access_key",
         "Access key for aws.",
+        default="",
     )
     parser.addini(
         "sns_sqs_secret_key",
         "Secret key for aws.",
+        default="",
     )
     parser.addini(
         "sns_sqs_endpoint_url",
         "Endpoint for aws.",
+        default="",
     )
     parser.addini(
         "sns_sqs_region",
         "Region for aws.",
+        default="",
     )
     parser.addini(
         "sns_sqs_queue_name",
@@ -43,7 +47,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addini(
         "sns_sqs_dead_letter_queue_name",
         "SQS queue name for dead letters.",
-        default="sns-sqs-communicator-queue",
+        default="sns-sqs-communicator-dead-letter-queue",
     )
     parser.addini(
         "sqs_queue_class",
@@ -63,18 +67,22 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addini(
         "sqs_parser_class",
         "Path to parser class.",
+        default="",
     )
     parser.addini(
         "sns_parser_class",
         "Path to parser class.",
+        default="",
     )
     parser.addini(
         "sqs_poll_worker_class",
         "Path to sqs poll worker class.",
+        default="",
     )
     parser.addini(
         "sns_sqs_worker_wait_before_pull",
         "Time for worker to wait before pulling.",
+        default="0.5",
     )
 
 
@@ -92,14 +100,12 @@ def sns_sqs_access_key_getter(
 ) -> types.AccessKeyGetter:
     """Set up cred getter."""
     if (
-        access_key := request.config.inicfg.get(
+        access_key := request.config.getini(
             "sns_sqs_access_key",
-            "",
         )
     ) and (
-        secret_key := request.config.inicfg.get(
+        secret_key := request.config.getini(
             "sns_sqs_secret_key",
-            "",
         )
     ):
         return lambda: botocore.credentials.Credentials(
@@ -117,9 +123,8 @@ def sns_sqs_endpoint_url_getter(
     request: pytest.FixtureRequest,
 ) -> types.AWSEndpointUrlGetter | None:
     """Set up url getter."""
-    if endpoint_url := request.config.inicfg.get(
+    if endpoint_url := request.config.getini(
         "sns_sqs_endpoint_url",
-        "",
     ):
         return lambda: str(endpoint_url)
     return None  # pragma: no cover
@@ -130,7 +135,7 @@ def sns_sqs_region(
     request: pytest.FixtureRequest,
 ) -> str:
     """Get region."""
-    return str(request.config.inicfg.get("sns_sqs_region", ""))
+    return str(request.config.getini("sns_sqs_region"))
 
 
 @pytest.fixture(scope="session")
@@ -223,10 +228,7 @@ def sqs_queue_name(
             (
                 worker_input["workerid"],
                 str(
-                    request.config.inicfg.get(
-                        "sns_sqs_queue_name",
-                        "sns-sqs-communicator-queue",
-                    ),
+                    request.config.getini("sns_sqs_queue_name"),
                 ),
             ),
         ),
@@ -251,9 +253,8 @@ def dead_letter_sqs_queue_name(
             (
                 worker_input["workerid"],
                 str(
-                    request.config.inicfg.get(
+                    request.config.getini(
                         "sns_sqs_dead_letter_queue_name",
-                        "sns-sqs-communicator-dead-letter-queue",
                     ),
                 ),
             ),
@@ -266,12 +267,12 @@ def sqs_queue_class(
     request: pytest.FixtureRequest,
 ) -> type[queue_module.SQSQueue]:
     """Get queue class for factory."""
-    sns_sqs_queue_class = str(
-        request.config.inicfg.get("sns_sqs_queue_class", ""),
+    sqs_queue_class = str(
+        request.config.getini("sqs_queue_class"),
     )
-    if not sns_sqs_queue_class:
+    if not sqs_queue_class:
         return queue_module.SQSQueue
-    *module, klass = sns_sqs_queue_class.split(".")  # pragma: no cover
+    *module, klass = sqs_queue_class.split(".")  # pragma: no cover
     return getattr(
         importlib.import_module(".".join(module)),
         klass,
@@ -385,10 +386,7 @@ def sns_topic_name(
             (
                 worker_input["workerid"],
                 str(
-                    request.config.inicfg.get(
-                        "sns_sqs_topic_name",
-                        "sns-sqs-communicator-topic",
-                    ),
+                    request.config.getini("sns_sqs_topic_name"),
                 ),
             ),
         ),
@@ -400,13 +398,13 @@ def sns_topic_class(
     request: pytest.FixtureRequest,
 ) -> type[topic_module.SNSTopic]:
     """Get topic class for factory."""
-    sns_sqs_topic_class = str(
-        request.config.inicfg.get("sns_sqs_topic_class", ""),
+    sns_topic_class = str(
+        request.config.getini("sns_topic_class"),
     )
-    if not sns_sqs_topic_class:
+    if not sns_topic_class:
         return topic_module.SNSTopic
 
-    *module, klass = sns_sqs_topic_class.split(".")  # pragma: no cover
+    *module, klass = sns_topic_class.split(".")  # pragma: no cover
     return getattr(
         importlib.import_module(".".join(module)),
         klass,
@@ -475,7 +473,9 @@ def sqs_parser(
 ) -> type[parsers_module.ParserProtocol[typing.Any]]:
     """Get parser for sqs messages."""
     sns_sqs_topic_class = str(
-        request.config.inicfg.get("sqs_parser_class", ""),
+        request.config.getini(
+            "sqs_parser_class",
+        ),
     )
     if not sns_sqs_topic_class:
         raise NotImplementedError(  # pragma: no cover
@@ -492,7 +492,7 @@ def sns_parser(
 ) -> type[parsers_module.ParserProtocol[typing.Any]]:
     """Get parser for sns messages."""
     sns_sqs_topic_class = str(
-        request.config.inicfg.get("sns_parser_class", ""),
+        request.config.getini("sns_parser_class"),
     )
     if not sns_sqs_topic_class:
         raise NotImplementedError(  # pragma: no cover
@@ -509,7 +509,7 @@ async def sqs_poll_worker_class(
 ) -> type[sqs_poll_worker.SQSPollWorker[typing.Any]]:
     """Get sqs poll worker class."""
     sqs_poll_worker_class = str(
-        request.config.inicfg.get("sqs_poll_worker_class", ""),
+        request.config.getini("sqs_poll_worker_class"),
     )
     if not sqs_poll_worker_class:
         raise NotImplementedError(  # pragma: no cover
@@ -527,7 +527,7 @@ async def sns_sqs_worker_wait_before_pull(
     """Time to wait before worker will pull messages."""
     return float(
         str(
-            request.config.inicfg.get("sns_sqs_worker_wait_before_pull", 0.5),
+            request.config.getini("sns_sqs_worker_wait_before_pull"),
         ),
     )
 
